@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>AI Content Engine</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
+  </head>
+  <body class="p-4">
+    <div class="container">
+      <h1 class="mb-4">AI Content Engine</h1>
+
+      <div class="mb-3">
+        <label for="topic" class="form-label">Topic</label>
+        <input id="topic" class="form-control" placeholder="Enter a medical topic (e.g. asthma, diabetes)" />
+      </div>
+      <button id="generateBtn" class="btn btn-primary mb-4">Generate</button>
+
+      <h2>Contents</h2>
+      <table class="table table-striped" id="contentsTable">
+        <thead>
+          <tr>
+            <th>ID</th>
+            <th>Topic</th>
+            <th>Script</th>
+            <th>Status</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+    </div>
+
+    <script>
+      async function loadContents(){
+        const res = await fetch('/contents');
+        const data = await res.json();
+        const tbody = document.querySelector('#contentsTable tbody');
+        tbody.innerHTML = '';
+        data.forEach(row => {
+          const tr = document.createElement('tr');
+          tr.innerHTML = `
+            <td>${row.id}</td>
+            <td>${row.topic}</td>
+            <td>${row.script}</td>
+            <td>${row.status}</td>
+            <td><button class="btn btn-sm btn-success" onclick="setStatus(${row.id}, 'posted')">Mark Posted</button></td>
+          `;
+          tbody.appendChild(tr);
+        })
+      }
+
+      async function setStatus(id, status){
+        await fetch(`/status/${id}?status=${status}`, { method: 'POST' });
+        loadContents();
+      }
+
+      document.getElementById('generateBtn').addEventListener('click', async ()=>{
+        const topic = document.getElementById('topic').value;
+        if(!topic) return alert('Enter a topic');
+        const res = await fetch(`/generate?topic=${encodeURIComponent(topic)}`);
+        const body = await res.json();
+        alert('Generated content id: ' + body.id);
+        loadContents();
+      })
+
+      loadContents();
+    </script>
+  </body>
+</html>
