@@ -20,11 +20,39 @@ jobs:
           SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
         run: |
           rsync -avz --delete --exclude '.git' ai-content-engine/ $SERVER_USER@$SERVER_HOST:$SERVER_APP_DIR
-      - name: Restart service and run migrations on server
+      - name: Backup DB, restart service and run migrations on server
+        env:
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
         run: |
-          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} '
-            cd ${{ secrets.SERVER_APP_DIR }} && \
-            docker-compose down && \
-            docker-compose up -d --build && \
-            docker-compose run --rm backend alembic upgrade head
-          '
+          # On-server operations: backup DB (if pg is reachable from server), deploy and run migrations
+          ssh $SERVER_USER@$SERVER_HOST "bash -s" << 'SSH_EOF'
+          set -euo pipefail
+          cd $SERVER_APP_DIR
+
+          # optional: create db backup if DB env is present in .env
+          if [ -f .env ]; then
+            export $(grep -v '^#' .env | xargs)
+          fi
+
+          TIMESTAMP=$(date +%Y%m%d%H%M%S)
+          if [ -n "${DB_HOST-}" ] && [ -n "${DB_NAME-}" ] && [ -n "${DB_USER-}" ]; then
+            echo "Creating DB backup to backups/db_backup_$TIMESTAMP.sql.gz"
+            mkdir -p backups
+            pg_dump -h ${DB_HOST} -U ${DB_USER} -d ${DB_NAME} -F c | gzip > backups/db_backup_${TIMESTAMP}.sql.gz || echo "DB backup failed or pg_dump not available"
+          else
+            echo "DB env not found in .env; skipping DB backup"
+          fi
+
+          # Deploy containers
+          docker-compose down || true
+          docker-compose up -d --build
+
+          # Run alembic migrations inside a one-off backend container
+          # If CI provides DB secrets as ACTION secrets, they could be injected here; otherwise use server .env
+          docker-compose run --rm backend alembic upgrade head || {
+            echo "Migration failed"; exit 1;
+          }
+
+          SSH_EOF
