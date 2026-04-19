@@ -1,0 +1,31 @@
+name: CD
+
+on:
+  push:
+    branches: [ main ]
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Setup SSH
+        uses: webfactory/ssh-agent@v0.8.1
+        with:
+          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+      - name: Rsync to remote
+        env:
+          SERVER_USER: ${{ secrets.SERVER_USER }}
+          SERVER_HOST: ${{ secrets.SERVER_HOST }}
+          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
+        run: |
+          rsync -avz --delete --exclude '.git' ./ $SERVER_USER@$SERVER_HOST:$SERVER_APP_DIR
+      - name: Restart service and run migrations on server
+        run: |
+          ssh ${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }} '
+            cd ${{ secrets.SERVER_APP_DIR }} && \
+            docker-compose down && \
+            docker-compose up -d --build && \
+            # Run alembic migrations inside the backend container
+            docker-compose run --rm backend alembic upgrade head
+          '
