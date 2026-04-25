@@ -1,194 +1,117 @@
 import time
+import json
 import logging
 from typing import Optional
 import requests
-from ..ai.base_provider import BaseAIProvider
+from .base_provider import BaseAIProvider
 from ...core.config import settings
 
 logger = logging.getLogger(__name__)
 
+GEMINI_ENDPOINT = (
+    "https://generativelanguage.googleapis.com/v1beta/models/"
+    "gemini-1.5-flash:generateContent"
+)
+
 
 class GeminiProvider(BaseAIProvider):
-    """Google Gemini REST provider implementing standard REST shapes.
-
-    Endpoint: https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateText
-    """
-
-    ENDPOINT = "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateText"
-
-    def __init__(self, api_key: Optional[str] = None, retries: int = 3, backoff: float = 1.0, timeout: int = 8):
+    def __init__(
+        self,
+        api_key: Optional[str] = None,
+        retries: int = 3,
+        backoff: float = 1.0,
+        timeout: int = 30,
+    ):
         self.api_key = api_key or settings.GEMINI_API_KEY
         self.retries = retries
         self.backoff = backoff
         self.timeout = timeout
 
-    def _build_prompt(self, topic: str) -> str:
-        # Build a clear instruction; returns plain text for prompt.text
-        return (
-            f"Write a 20-40 second emotional medical story about '{topic}'. "
-            "Use simple English. Output must start with a single-line hook, then the story, "
-            "and end with a clear one-line lesson. Keep the total length suitable for social media."
-        )
-
-    def _parse_response(self, data: dict) -> Optional[str]:
-        try:
-            # 1) candidates[0].content.parts[0].text
-            candidates = data.get("candidates")
-            if isinstance(candidates, list) and candidates:
-                first = candidates[0]
-                content = first.get("content") or {}
-                parts = content.get("parts")
-                if isinstance(parts, list) and parts:
-                    text = parts[0].get("text")
-                    if text and isinstance(text, str):
-                        return text.strip()
-
-            # 2) candidates[0].output
-            if isinstance(candidates, list) and candidates and isinstance(candidates[0].get("output"), str):
-                return candidates[0].get("output").strip()
-
-            # 3) top-level 'output' or 'text'
-            if isinstance(data.get("output"), str):
-                return data.get("output").strip()
-            if isinstance(data.get("text"), str):
-                return data.get("text").strip()
-
-        except Exception:
-            logger.exception("Error parsing Gemini response")
-        return None
-
-    def generate_content(self, topic: str) -> str:
-        # Validate topic length (security)
-        if not topic or len(topic) > 100:
-            logger.warning("Invalid topic length: %s", len(topic))
-            raise ValueError("Invalid topic")
-
+    def _call(self, prompt: str) -> Optional[str]:
         if not self.api_key:
-            logger.warning("GEMINI_API_KEY not set; returning fallback")
-            return "Failed to generate content. Try again."
+            logger.warning("GEMINI_API_KEY not set")
+            return None
 
-        instruction = self._build_prompt(topic)
+        url = f"{GEMINI_ENDPOINT}?key={self.api_key}"
         payload = {
-            "prompt": {"text": instruction},
-            "max_output_tokens": 300,
-            "temperature": 0.3,
+            "contents": [{"parts": [{"text": prompt}]}],
+            "generationConfig": {"temperature": 0.85, "maxOutputTokens": 1024},
         }
 
-        attempt = 0
-        while attempt < self.retries:
-            attempt += 1
+        for attempt in range(1, self.retries + 1):
             try:
-                logger.info("Gemini request attempt %s for topic=%s", attempt, topic)
-                headers = {"Content-Type": "application/json", "X-goog-api-key": self.api_key}
-                resp = requests.post(self.ENDPOINT, json=payload, headers=headers, timeout=self.timeout)
+                logger.info("Gemini attempt %s", attempt)
+                resp = requests.post(
+                    url,
+                    json=payload,
+                    headers={"Content-Type": "application/json"},
+                    timeout=self.timeout,
+                )
                 resp.raise_for_status()
                 data = resp.json()
-                text = self._parse_response(data)
-                if text:
-                    logger.info("Gemini success for topic=%s", topic)
-                    return text
-                else:
-                    logger.warning("Gemini returned empty/invalid response on attempt %s", attempt)
-                    raise RuntimeError("Empty response")
-            except (requests.RequestException, RuntimeError) as e:
-                logger.exception("Gemini call failed on attempt %s: %s", attempt, str(e))
-                if attempt >= self.retries:
-                    logger.error("Gemini exhausted retries (%s)", self.retries)
-                    return "Failed to generate content. Try again."
-                sleep_for = self.backoff * (2 ** (attempt - 1))
-                time.sleep(sleep_for)
-import time
-import logging
-from typing import Optional
-import requests
-from ..ai.base_provider import BaseAIProvider
-from ...core.config import settings
-
-logger = logging.getLogger(__name__)
-
-
-class GeminiProvider(BaseAIProvider):
-    """Google Gemini REST provider.
-
-    Uses the v1beta endpoint to generate content. Implements retries, timeouts,
-    exponential backoff, defensive response parsing, and a clean fallback message.
-    """
-
-    ENDPOINT = (
-        "https://generativelanguage.googleapis.com/v1beta/models/gemini-pro:generateContent"
-    )
-
-    def __init__(self, api_key: Optional[str] = None, retries: int = 3, backoff: float = 1.0, timeout: int = 8):
-        self.api_key = api_key or settings.GEMINI_API_KEY
-        self.retries = retries
-        self.backoff = backoff
-        self.timeout = timeout
-
-    def _build_prompt(self, topic: str) -> dict:
-        # Structured instructions: short, emotional, hook + story + ending lesson
-        instruction = (
-            f"Write a 20-40 second emotional medical story about '{topic}'. "
-            "Use simple English. Output must start with a single-line hook, then the story, "
-            "and end with a clear one-line lesson. Keep the total length suitable for social media."
-        )
-        # The Gemini API expects structured input; use `prompt`-like field depending on API
-        return {
-            "instances": [
-                {
-                    "content": instruction,
-                }
-            ]
-        }
-
-    def _parse_response(self, data: dict) -> Optional[str]:
-        # Expected path per requirement
-        try:
-            candidates = data.get("candidates")
-            if isinstance(candidates, list) and candidates:
-                first = candidates[0]
-                content = first.get("content") or {}
-                parts = content.get("parts")
-                if isinstance(parts, list) and parts:
-                    text = parts[0].get("text")
-                    if text and isinstance(text, str):
-                        return text.strip()
-        except Exception:
-            logger.exception("Failed to parse Gemini response")
+                candidates = data.get("candidates") or []
+                if candidates:
+                    parts = candidates[0].get("content", {}).get("parts") or []
+                    if parts:
+                        text = parts[0].get("text", "").strip()
+                        if text:
+                            return text
+                logger.warning("Empty Gemini response on attempt %s", attempt)
+                raise RuntimeError("empty response")
+            except Exception as exc:
+                logger.warning("Gemini attempt %s failed: %s", attempt, exc)
+                if attempt < self.retries:
+                    time.sleep(self.backoff * (2 ** (attempt - 1)))
         return None
 
     def generate_content(self, topic: str) -> str:
-        # Input validation (security)
-        if not topic or len(topic) > 100:
-            logger.warning("Invalid topic length: %s", len(topic))
-            raise ValueError("Invalid topic")
+        if not topic or len(topic) > 200:
+            raise ValueError("Invalid topic length")
+        prompt = (
+            f"Write a 20-40 second emotional story about '{topic}'. "
+            "Start with a single punchy hook line, then the story, then a clear one-line lesson. "
+            "Keep it suitable for social media reels."
+        )
+        return self._call(prompt) or "Failed to generate content. Try again."
 
-        if not self.api_key:
-            logger.warning("GEMINI_API_KEY not set; returning fallback message")
-            return "Failed to generate content. Try again."
+    def generate_viral_content(self, topic: str, category: str) -> dict:
+        if not topic or len(topic) > 200:
+            raise ValueError("Invalid topic length")
 
-        payload = self._build_prompt(topic)
+        prompt = f"""Generate viral short-form reel content for this topic: "{topic}" (category: {category}).
 
-        attempt = 0
-        while attempt < self.retries:
-            attempt += 1
-            try:
-                logger.info("Gemini request attempt %s for topic '%s'", attempt, topic)
-                headers = {"Content-Type": "application/json", "X-goog-api-key": self.api_key}
-                resp = requests.post(self.ENDPOINT, json=payload, headers=headers, timeout=self.timeout)
-                resp.raise_for_status()
-                data = resp.json()
-                text = self._parse_response(data)
-                if text:
-                    logger.info("Gemini success for topic '%s'", topic)
-                    return text
-                else:
-                    logger.warning("Gemini returned empty or unexpected response; attempt %s", attempt)
-                    raise RuntimeError("Empty response")
-            except (requests.RequestException, RuntimeError) as e:
-                logger.exception("Gemini call failed on attempt %s: %s", attempt, str(e))
-                if attempt >= self.retries:
-                    logger.error("Gemini failed after %s attempts", self.retries)
-                    return "Failed to generate content. Try again."
-                sleep_for = self.backoff * (2 ** (attempt - 1))
-                time.sleep(sleep_for)
+Return ONLY a valid JSON object — no markdown, no explanation:
+{{
+  "hook": "one punchy opening sentence, max 15 words",
+  "reel_title": "catchy reel/shorts title, max 10 words",
+  "script": "30-second voice-over script, 60-80 words, emotional and engaging",
+  "caption": "social media caption with emotion, max 150 chars",
+  "hashtags": ["#tag1", "#tag2", "#tag3", "#tag4", "#tag5", "#tag6"],
+  "viral_score": <integer 1-100 based on emotional impact and trending potential>
+}}"""
 
+        raw = self._call(prompt)
+        if not raw:
+            return self._fallback_viral_content(topic, category)
+
+        try:
+            clean = raw.strip()
+            # Strip markdown code fences if Gemini wraps output
+            if clean.startswith("```"):
+                lines = clean.splitlines()
+                inner = [l for l in lines if not l.startswith("```")]
+                clean = "\n".join(inner)
+            return json.loads(clean)
+        except (json.JSONDecodeError, ValueError):
+            logger.warning("Gemini returned non-JSON for viral content, using raw as script")
+            return self._fallback_viral_content(topic, category, script=raw)
+
+    def _fallback_viral_content(self, topic: str, category: str, script: str = "") -> dict:
+        return {
+            "hook": f"You won't believe what happened with {topic[:60]}",
+            "reel_title": topic[:50],
+            "script": script or f"This is an important story about {topic}. Watch till the end.",
+            "caption": f"Incredible story about {topic[:80]}. Follow for more!",
+            "hashtags": ["#viral", "#trending", "#reels", "#shorts", f"#{category}", "#fyp"],
+            "viral_score": 50,
+        }

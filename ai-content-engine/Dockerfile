@@ -10,7 +10,7 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 COPY . /app
 
-EXPOSE 8000
+EXPOSE 2000
 
-# Use gunicorn with uvicorn workers for production
-CMD ["gunicorn", "app.main:application", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:8000", "--workers", "2"]
+# Use gunicorn with uvicorn workers for production, bind to port 2000
+CMD ["gunicorn", "app.main:application", "-k", "uvicorn.workers.UvicornWorker", "-b", "0.0.0.0:2000", "--workers", "2"]

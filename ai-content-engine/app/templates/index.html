@@ -51,17 +51,33 @@
       }
 
       async function setStatus(id, status){
-        await fetch(`/status/${id}?status=${status}`, { method: 'POST' });
+        await fetch(`/status/${id}`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({status}) });
         loadContents();
       }
 
       document.getElementById('generateBtn').addEventListener('click', async ()=>{
         const topic = document.getElementById('topic').value;
-        if(!topic) return alert('Enter a topic');
-        const res = await fetch(`/generate?topic=${encodeURIComponent(topic)}`);
+        const t = (topic || '').trim();
+        if(!t) return alert('Enter a topic');
+        if(t.length > 100) return alert('Topic too long (max 100 chars)');
+        const res = await fetch('/generate', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({topic: t})});
         const body = await res.json();
         alert('Generated content id: ' + body.id);
-        loadContents();
+        // poll until status becomes posted or failed
+        const start = Date.now();
+        const poll = setInterval(async ()=>{
+          const r = await fetch('/contents');
+          const rows = await r.json();
+          const item = rows.find(x=>x.id === body.id);
+          if(item){
+            if(item.status === 'posted' || item.status === 'failed'){
+              clearInterval(poll);
+              loadContents();
+            }
+            // stop polling after 30s
+            if(Date.now() - start > 30000) clearInterval(poll);
+          }
+        }, 1500);
       })
 
       loadContents();

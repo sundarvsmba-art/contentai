@@ -14,6 +14,19 @@ class Settings(BaseSettings):
     CELERY_BROKER_URL: Optional[str] = None
     CELERY_RESULT_BACKEND: Optional[str] = None
     MAX_TOPIC_LENGTH: int = 200
+    APP_PORT: int = 2000
+
+    # Admin auth
+    SECRET_KEY: str = "change-me-in-production-32-chars!!"
+    ADMIN_USERNAME: str = "admin"
+    ADMIN_PASSWORD: str = "admin123"
+    ACCESS_TOKEN_EXPIRE_HOURS: int = 24
+
+    # Optional News API key (newsapi.org)
+    NEWS_API_KEY: Optional[str] = None
+
+    # Rate limiting
+    RATE_LIMIT_GENERATE: str = "10/minute"
 
     class Config:
         env_file = Path(__file__).resolve().parents[2] / '.env'

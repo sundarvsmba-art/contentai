@@ -14,7 +14,7 @@ Quick start
 docker-compose up --build
 ```
 
-3. Open http://localhost:8000 in your browser.
+3. Open http://localhost:2000 in your browser.
 
 Notes on background processing
 - The generation is handled asynchronously by Celery workers. The `worker` service runs Celery and listens on Redis.
