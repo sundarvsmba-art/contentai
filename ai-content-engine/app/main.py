@@ -17,7 +17,7 @@ from .routes.content_routes import router as content_router
 from .routes.trend_routes import router as trend_router
 
 setup_logging()
-
+ 
 app = FastAPI(title="AI Trend Content Platform", version="2.0.0")
 
 # Rate limiter
