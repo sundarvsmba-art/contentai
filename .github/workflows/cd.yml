@@ -1,116 +1,55 @@
 name: CD
 
 on:
-  push:
-    branches: [ main ]
-
-permissions:
-  contents: read
-  id-token: write
+push:
+branches:
+- main
 
 jobs:
-  deploy:
-    name: Deploy to server via SSH
-    runs-on: ubuntu-latest
-    environment: production
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
+deploy:
+runs-on: ubuntu-latest
 
-      - name: Setup SSH agent
-        uses: webfactory/ssh-agent@v0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
+```
+steps:
+  - name: Checkout Repository
+    uses: actions/checkout@v4
 
-      - name: Rsync project to remote server
-        env:
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
-        run: |
-          rsync -avz --delete --exclude '.git' ai-content-engine/ "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}:${{ secrets.SERVER_APP_DIR }}"
+  - name: Setup SSH
+    uses: webfactory/ssh-agent@v0.9.0
+    with:
+      ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
 
-      - name: Remote deploy (docker-compose & alembic)
-        env:
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
-        run: |
-          ssh "${{ secrets.SERVER_USER }}@${{ secrets.SERVER_HOST }}" "bash -s" << 'EOF'
-          set -euo pipefail
-          cd "${{ secrets.SERVER_APP_DIR }}"
-          if [ -f .env ]; then
-            set -o allexport
-            source .env || true
-            set +o allexport
-          fi
-          docker-compose down || true
-          docker-compose up -d --build
-          docker-compose run --rm backend alembic upgrade head || { docker-compose logs --tail=200 backend || true; exit 1; }
-          docker-compose exec backend python scripts/check_db.py || { docker-compose logs --tail=200 backend || true; exit 1; }
-          curl -sS --fail http://localhost:2000/health || { echo 'Health check failed'; docker-compose logs --tail=200 backend || true; exit 1; }
-          docker-compose logs --no-color --tail=200 backend || true
-          docker-compose logs --no-color --tail=200 worker || true
-          EOF
+  - name: Sync Files to Server
+    env:
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
 
-      - name: Notify
-        run: echo "Deployment to ${{ secrets.SERVER_HOST }} completed"
-name: CD
+    run: |
+      rsync -avz --delete \
+        --exclude '.git' \
+        ./ $SERVER_USER@$SERVER_HOST:$SERVER_APP_DIR
 
-on:
-  push:
-    branches: [ main ]
+  - name: Deploy Application
+    env:
+      SERVER_USER: ${{ secrets.SERVER_USER }}
+      SERVER_HOST: ${{ secrets.SERVER_HOST }}
+      SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
 
-jobs:
-  deploy:
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - name: Setup SSH
-        uses: webfactory/ssh-agent@v0
-        with:
-          ssh-private-key: ${{ secrets.SSH_PRIVATE_KEY }}
-      - name: Rsync to remote
-        env:
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
-        run: |
-          rsync -avz --delete --exclude '.git' ai-content-engine/ $SERVER_USER@$SERVER_HOST:$SERVER_APP_DIR
-      - name: Backup DB, restart service and run migrations on server
-        env:
-          SERVER_USER: ${{ secrets.SERVER_USER }}
-          SERVER_HOST: ${{ secrets.SERVER_HOST }}
-          SERVER_APP_DIR: ${{ secrets.SERVER_APP_DIR }}
-        run: |
-          # On-server operations: backup DB (if pg is reachable from server), deploy and run migrations
-          ssh $SERVER_USER@$SERVER_HOST "bash -s" << 'SSH_EOF'
-          set -euo pipefail
-          cd $SERVER_APP_DIR
+    run: |
+      ssh -o StrictHostKeyChecking=no $SERVER_USER@$SERVER_HOST << EOF
 
-          # optional: create db backup if DB env is present in .env
-          if [ -f .env ]; then
-            export $(grep -v '^#' .env | xargs)
-          fi
+        cd $SERVER_APP_DIR
 
-          TIMESTAMP=$(date +%Y%m%d%H%M%S)
-          if [ -n "${DB_HOST-}" ] && [ -n "${DB_NAME-}" ] && [ -n "${DB_USER-}" ]; then
-            echo "Creating DB backup to backups/db_backup_$TIMESTAMP.sql.gz"
-            mkdir -p backups
-            pg_dump -h ${DB_HOST} -U ${DB_USER} -d ${DB_NAME} -F c | gzip > backups/db_backup_${TIMESTAMP}.sql.gz || echo "DB backup failed or pg_dump not available"
-          else
-            echo "DB env not found in .env; skipping DB backup"
-          fi
+        docker compose down
 
-          # Deploy containers
-          docker-compose down || true
-          docker-compose up -d --build
+        docker compose build
 
-          # Run alembic migrations inside a one-off backend container
-          # If CI provides DB secrets as ACTION secrets, they could be injected here; otherwise use server .env
-          docker-compose run --rm backend alembic upgrade head || {
-            echo "Migration failed"; exit 1;
-          }
+        docker compose run --rm backend alembic upgrade head
 
-          SSH_EOF
+        docker compose up -d
 
+        docker image prune -f
+
+      EOF
+```
