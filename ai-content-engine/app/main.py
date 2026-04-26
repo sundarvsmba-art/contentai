@@ -12,8 +12,10 @@ from .core.database import create_tables
 from .core.limiter import limiter
 from .core.logging import setup_logging
 from .middleware.request_logging import RequestLoggingMiddleware
+from .routes.ai_routes import router as ai_router
 from .routes.auth_routes import router as auth_router
 from .routes.content_routes import router as content_router
+from .routes.health_routes import router as health_router
 from .routes.trend_routes import router as trend_router
 
 setup_logging()
@@ -52,6 +54,8 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+app.include_router(health_router)
+app.include_router(ai_router)
 app.include_router(auth_router)
 app.include_router(trend_router)
 app.include_router(content_router)

@@ -1,13 +1,11 @@
 import logging
 
-import redis
 from fastapi import APIRouter, Body, Depends, HTTPException, Request
 from fastapi.responses import JSONResponse
-from sqlalchemy import text
 from sqlalchemy.orm import Session
 
 from ..core.config import settings
-from ..core.database import engine, get_db
+from ..core.database import get_db
 from ..core.limiter import limiter
 from ..routes.auth_routes import require_admin
 from ..schemas.content import ContentCreate
@@ -81,23 +79,3 @@ def patch_status(
     if not updated:
         raise HTTPException(status_code=404, detail="Content not found")
     return JSONResponse({"id": updated.id, "status": updated.status})
-
-
-@router.get("/health")
-def health():
-    db_status = "connected"
-    try:
-        with engine.connect() as conn:
-            conn.execute(text("SELECT 1"))
-    except Exception:
-        db_status = "disconnected"
-
-    redis_status = "connected"
-    try:
-        r = redis.from_url(settings.REDIS_URL)
-        r.ping()
-    except Exception:
-        redis_status = "disconnected"
-
-    overall = "ok" if db_status == "connected" and redis_status == "connected" else "degraded"
-    return JSONResponse({"status": overall, "db": db_status, "redis": redis_status})

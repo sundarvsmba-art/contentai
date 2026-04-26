@@ -5,6 +5,7 @@ from datetime import datetime
 
 class ContentCreate(BaseModel):
     topic: str
+    category: Optional[str] = None
 
 
 class ContentOut(BaseModel):

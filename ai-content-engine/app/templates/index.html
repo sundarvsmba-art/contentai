@@ -1,86 +1,745 @@
 <!doctype html>
-<html lang="en">
-  <head>
-    <meta charset="utf-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1" />
-    <title>AI Content Engine</title>
-    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet">
-  </head>
-  <body class="p-4">
-    <div class="container">
-      <h1 class="mb-4">AI Content Engine</h1>
+<html lang="en" data-bs-theme="dark">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1"/>
+  <title>AI Content Platform</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.min.css" rel="stylesheet"/>
+  <style>
+    :root { --accent: #6366f1; }
+    body { background: #0f1117; color: #e2e8f0; font-family: 'Segoe UI', system-ui, sans-serif; }
+    .navbar-brand { font-weight: 700; letter-spacing: -.5px; color: var(--accent) !important; font-size: 1.3rem; }
+    .provider-bar { background: #1e2130; border-bottom: 1px solid #2d3148; padding: .5rem 1.5rem; display: flex; align-items: center; gap: 1rem; flex-wrap: wrap; font-size: .85rem; }
+    .provider-badge { display: inline-flex; align-items: center; gap: .35rem; padding: .25rem .7rem; border-radius: 20px; font-weight: 600; font-size: .78rem; }
+    .provider-badge.online  { background: #052e16; color: #4ade80; border: 1px solid #166534; }
+    .provider-badge.offline { background: #2d1515; color: #f87171; border: 1px solid #7f1d1d; }
+    .provider-badge.checking { background: #1e293b; color: #94a3b8; border: 1px solid #334155; }
+    .stat-card { background: #1e2130; border: 1px solid #2d3148; border-radius: 12px; padding: 1.2rem 1.5rem; }
+    .stat-card .value { font-size: 2rem; font-weight: 700; color: var(--accent); line-height: 1; }
+    .stat-card .label { font-size: .8rem; color: #94a3b8; margin-top: .3rem; }
+    .nav-tabs { border-color: #2d3148; }
+    .nav-tabs .nav-link { color: #94a3b8; border-color: transparent; }
+    .nav-tabs .nav-link.active { background: #1e2130; color: #e2e8f0; border-color: #2d3148 #2d3148 #1e2130; }
+    .nav-tabs .nav-link:hover:not(.active) { color: #e2e8f0; border-color: transparent; }
+    .tab-content { background: #1e2130; border: 1px solid #2d3148; border-top: none; border-radius: 0 0 12px 12px; padding: 1.5rem; }
+    .form-control, .form-select { background: #0f1117; border-color: #2d3148; color: #e2e8f0; }
+    .form-control:focus, .form-select:focus { background: #0f1117; border-color: var(--accent); color: #e2e8f0; box-shadow: 0 0 0 .2rem rgba(99,102,241,.25); }
+    .form-control::placeholder { color: #4b5563; }
+    .btn-primary { background: var(--accent); border-color: var(--accent); }
+    .btn-primary:hover { background: #4f46e5; border-color: #4f46e5; }
+    .result-card { background: #0f1117; border: 1px solid #2d3148; border-radius: 10px; padding: 1.25rem; }
+    .result-label { font-size: .7rem; font-weight: 700; text-transform: uppercase; letter-spacing: .08em; color: #6366f1; margin-bottom: .3rem; }
+    .viral-bar { height: 6px; border-radius: 3px; background: #1e293b; overflow: hidden; margin-top: .4rem; }
+    .viral-bar-fill { height: 100%; border-radius: 3px; transition: width .6s ease; }
+    .content-card { background: #0f1117; border: 1px solid #2d3148; border-radius: 10px; padding: 1rem 1.25rem; margin-bottom: .75rem; }
+    .content-card .topic { font-weight: 600; color: #e2e8f0; font-size: .95rem; }
+    .content-card .meta { font-size: .75rem; color: #64748b; margin-top: .2rem; }
+    .trend-row:hover td { background: rgba(99,102,241,.07); }
+    .hashtag { display: inline-block; background: #1e2130; border: 1px solid #3730a3; color: #a5b4fc; border-radius: 20px; padding: .1rem .6rem; font-size: .75rem; margin: .1rem; }
+    .status-badge { display: inline-block; padding: .2rem .6rem; border-radius: 20px; font-size: .72rem; font-weight: 700; text-transform: uppercase; letter-spacing: .05em; }
+    .status-draft      { background: #1e293b; color: #94a3b8; }
+    .status-processing { background: #1c1917; color: #fb923c; }
+    .status-ready      { background: #052e16; color: #4ade80; }
+    .status-failed     { background: #2d1515; color: #f87171; }
+    .status-posted     { background: #0c1a2e; color: #60a5fa; }
+    .spinner-sm { width: 1rem; height: 1rem; }
+    .score-high   { background: linear-gradient(90deg, #22c55e, #4ade80); }
+    .score-medium { background: linear-gradient(90deg, #eab308, #fbbf24); }
+    .score-low    { background: linear-gradient(90deg, #6366f1, #818cf8); }
+    .empty-state { text-align: center; color: #4b5563; padding: 3rem 1rem; }
+    .empty-state i { font-size: 2.5rem; display: block; margin-bottom: .75rem; }
+    #toast-container { position: fixed; bottom: 1.5rem; right: 1.5rem; z-index: 9999; display: flex; flex-direction: column; gap: .5rem; }
+    .toast-msg { padding: .75rem 1.25rem; border-radius: 8px; font-size: .85rem; font-weight: 500; animation: slideIn .2s ease; max-width: 320px; }
+    .toast-success { background: #052e16; color: #4ade80; border: 1px solid #166534; }
+    .toast-error   { background: #2d1515; color: #f87171; border: 1px solid #7f1d1d; }
+    .toast-info    { background: #0c1a2e; color: #60a5fa; border: 1px solid #1e3a5f; }
+    @keyframes slideIn { from { opacity:0; transform: translateX(20px); } to { opacity:1; transform: none; } }
+    .page-btn { background: #1e2130; border: 1px solid #2d3148; color: #94a3b8; border-radius: 6px; padding: .3rem .75rem; cursor: pointer; font-size: .82rem; }
+    .page-btn:hover:not(:disabled) { border-color: var(--accent); color: #e2e8f0; }
+    .page-btn:disabled { opacity: .4; cursor: default; }
+  </style>
+</head>
+<body>
 
-      <div class="mb-3">
-        <label for="topic" class="form-label">Topic</label>
-        <input id="topic" class="form-control" placeholder="Enter a medical topic (e.g. asthma, diabetes)" />
+<!-- Navbar -->
+<nav class="navbar" style="background:#13151f; border-bottom:1px solid #2d3148;">
+  <div class="container-fluid px-4">
+    <span class="navbar-brand"><i class="bi bi-stars me-2"></i>AI Content Platform</span>
+    <div class="ms-auto d-flex align-items-center gap-2">
+      <span id="auth-status" class="text-muted small"></span>
+      <button id="btn-login"  class="btn btn-sm btn-outline-secondary" onclick="openLogin()">
+        <i class="bi bi-person-lock me-1"></i>Admin Login
+      </button>
+      <button id="btn-logout" class="btn btn-sm btn-outline-danger d-none" onclick="logout()">
+        <i class="bi bi-box-arrow-right me-1"></i>Logout
+      </button>
+    </div>
+  </div>
+</nav>
+
+<!-- Provider status bar -->
+<div class="provider-bar">
+  <span class="fw-bold" style="color:#64748b;font-size:.75rem;letter-spacing:.06em">AI PROVIDERS</span>
+  <span id="badge-ollama" class="provider-badge checking"><i class="bi bi-circle-fill" style="font-size:.5rem"></i>&nbsp;Ollama · checking…</span>
+  <span id="badge-gemini" class="provider-badge checking"><i class="bi bi-circle-fill" style="font-size:.5rem"></i>&nbsp;Gemini · checking…</span>
+  <span id="badge-active" class="text-muted small"></span>
+  <span class="ms-auto text-muted" id="provider-last-check" style="font-size:.75rem"></span>
+  <button class="btn btn-sm btn-outline-secondary py-0 px-2" onclick="refreshProviders()" title="Refresh">
+    <i class="bi bi-arrow-clockwise"></i>
+  </button>
+</div>
+
+<!-- Main -->
+<div class="container-fluid px-4 mt-4">
+
+  <!-- Stats row -->
+  <div class="row g-3 mb-4">
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="value" id="stat-total">–</div>
+        <div class="label"><i class="bi bi-file-text me-1"></i>Total Content</div>
       </div>
-      <button id="generateBtn" class="btn btn-primary mb-4">Generate</button>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="value" id="stat-trends">–</div>
+        <div class="label"><i class="bi bi-graph-up-arrow me-1"></i>Trends (24h)</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="value" id="stat-ready">–</div>
+        <div class="label"><i class="bi bi-check-circle me-1"></i>Ready</div>
+      </div>
+    </div>
+    <div class="col-6 col-md-3">
+      <div class="stat-card">
+        <div class="value" id="stat-score">–</div>
+        <div class="label"><i class="bi bi-fire me-1"></i>Avg Viral Score</div>
+      </div>
+    </div>
+  </div>
 
-      <h2>Contents</h2>
-      <table class="table table-striped" id="contentsTable">
-        <thead>
-          <tr>
-            <th>ID</th>
-            <th>Topic</th>
-            <th>Script</th>
-            <th>Status</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody></tbody>
-      </table>
+  <!-- Tabs -->
+  <ul class="nav nav-tabs" id="mainTabs">
+    <li class="nav-item">
+      <button class="nav-link active" data-bs-toggle="tab" data-bs-target="#tab-generate">
+        <i class="bi bi-magic me-1"></i>Generate
+      </button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-trends" onclick="loadTrends()">
+        <i class="bi bi-graph-up me-1"></i>Trends
+      </button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-library" onclick="loadLibrary(1)">
+        <i class="bi bi-collection me-1"></i>Library
+      </button>
+    </li>
+    <li class="nav-item">
+      <button class="nav-link" data-bs-toggle="tab" data-bs-target="#tab-jobs" onclick="loadJobs()">
+        <i class="bi bi-cpu me-1"></i>Jobs
+        <span id="jobs-badge" class="badge bg-warning text-dark ms-1 d-none">0</span>
+      </button>
+    </li>
+  </ul>
+
+  <div class="tab-content">
+
+    <!-- ── Generate ─────────────────────────────────── -->
+    <div class="tab-pane fade show active" id="tab-generate">
+      <div class="row g-3 mb-3">
+        <div class="col-md-6">
+          <label class="form-label small text-muted">Topic</label>
+          <input id="gen-topic" class="form-control"
+                 placeholder="e.g. AI replacing doctors, Tamil Nadu floods 2026…"
+                 maxlength="200" onkeydown="if(event.key==='Enter') generateContent()"/>
+        </div>
+        <div class="col-md-3">
+          <label class="form-label small text-muted">Category</label>
+          <select id="gen-category" class="form-select">
+            <option value="general">General</option>
+            <option value="tamil_politics">Tamil Politics</option>
+            <option value="global_news">Global News</option>
+            <option value="ai_tech">AI / Tech</option>
+            <option value="celebrity">Celebrity</option>
+            <option value="emotional">Emotional</option>
+          </select>
+        </div>
+        <div class="col-md-3 d-flex align-items-end">
+          <button id="gen-btn" class="btn btn-primary w-100" onclick="generateContent()">
+            <i class="bi bi-stars me-1"></i>Generate
+          </button>
+        </div>
+      </div>
+
+      <!-- Polling -->
+      <div id="gen-polling" class="d-none text-center py-4">
+        <div class="spinner-border text-primary spinner-sm mb-2"></div>
+        <div class="text-muted small mt-2">
+          AI is generating content… <span id="gen-poll-elapsed" class="fw-bold">0s</span>
+        </div>
+      </div>
+
+      <!-- Result -->
+      <div id="gen-result" class="d-none">
+        <div class="d-flex align-items-center justify-content-between mb-3">
+          <span class="fw-bold" style="color:var(--accent)">
+            <i class="bi bi-check-circle-fill me-1"></i>Generated
+          </span>
+          <span id="gen-provider-used" class="small text-muted"></span>
+        </div>
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <div class="result-card h-100">
+              <div class="result-label"><i class="bi bi-lightning-charge me-1"></i>Hook</div>
+              <div id="res-hook" class="fw-bold fs-5" style="color:#e2e8f0;white-space:pre-wrap"></div>
+            </div>
+          </div>
+          <div class="col-12 col-md-6">
+            <div class="result-card h-100">
+              <div class="result-label"><i class="bi bi-camera-reels me-1"></i>Reel Title</div>
+              <div id="res-title" class="fw-semibold" style="color:#e2e8f0"></div>
+            </div>
+          </div>
+          <div class="col-12">
+            <div class="result-card">
+              <div class="result-label"><i class="bi bi-mic me-1"></i>Script (30s)</div>
+              <div id="res-script" style="color:#e2e8f0;white-space:pre-wrap;line-height:1.7"></div>
+            </div>
+          </div>
+          <div class="col-12 col-md-8">
+            <div class="result-card h-100">
+              <div class="result-label"><i class="bi bi-chat-quote me-1"></i>Caption</div>
+              <div id="res-caption" style="color:#e2e8f0"></div>
+              <div class="mt-2" id="res-hashtags"></div>
+            </div>
+          </div>
+          <div class="col-12 col-md-4">
+            <div class="result-card h-100">
+              <div class="result-label"><i class="bi bi-fire me-1"></i>Viral Score</div>
+              <div id="res-score" class="fw-bold" style="font-size:2.5rem;color:var(--accent);line-height:1"></div>
+              <div class="viral-bar mt-2"><div class="viral-bar-fill" id="res-score-bar"></div></div>
+              <div id="res-status-label" class="small text-muted mt-2"></div>
+            </div>
+          </div>
+        </div>
+      </div>
     </div>
 
-    <script>
-      async function loadContents(){
-        const res = await fetch('/contents');
-        const data = await res.json();
-        const tbody = document.querySelector('#contentsTable tbody');
-        tbody.innerHTML = '';
-        data.forEach(row => {
-          const tr = document.createElement('tr');
-          tr.innerHTML = `
-            <td>${row.id}</td>
-            <td>${row.topic}</td>
-            <td>${row.script}</td>
-            <td>${row.status}</td>
-            <td><button class="btn btn-sm btn-success" onclick="setStatus(${row.id}, 'posted')">Mark Posted</button></td>
-          `;
-          tbody.appendChild(tr);
-        })
-      }
+    <!-- ── Trends ────────────────────────────────────── -->
+    <div class="tab-pane fade" id="tab-trends">
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <select id="trend-cat-filter" class="form-select w-auto" onchange="loadTrends()">
+          <option value="">All Categories</option>
+          <option value="tamil_politics">Tamil Politics</option>
+          <option value="global_news">Global News</option>
+          <option value="ai_tech">AI / Tech</option>
+          <option value="celebrity">Celebrity</option>
+          <option value="emotional">Emotional</option>
+        </select>
+        <button class="btn btn-sm btn-outline-secondary" onclick="loadTrends()">
+          <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+        <button id="btn-fetch-trends" class="btn btn-sm btn-primary ms-auto" onclick="fetchTrends()">
+          <i class="bi bi-cloud-download me-1"></i>Fetch Live Trends
+        </button>
+      </div>
+      <div id="trends-body">
+        <div class="empty-state"><i class="bi bi-graph-up"></i>Click Refresh to load trends</div>
+      </div>
+    </div>
 
-      async function setStatus(id, status){
-        await fetch(`/status/${id}`, { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({status}) });
-        loadContents();
-      }
+    <!-- ── Library ───────────────────────────────────── -->
+    <div class="tab-pane fade" id="tab-library">
+      <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
+        <select id="lib-status-filter" class="form-select w-auto" onchange="loadLibrary(1)">
+          <option value="">All Statuses</option>
+          <option value="ready">Ready</option>
+          <option value="processing">Processing</option>
+          <option value="draft">Draft</option>
+          <option value="posted">Posted</option>
+          <option value="failed">Failed</option>
+        </select>
+        <select id="lib-cat-filter" class="form-select w-auto" onchange="loadLibrary(1)">
+          <option value="">All Categories</option>
+          <option value="general">General</option>
+          <option value="tamil_politics">Tamil Politics</option>
+          <option value="global_news">Global News</option>
+          <option value="ai_tech">AI / Tech</option>
+          <option value="celebrity">Celebrity</option>
+          <option value="emotional">Emotional</option>
+        </select>
+        <button class="btn btn-sm btn-outline-secondary" onclick="loadLibrary(1)">
+          <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+      </div>
+      <div id="lib-body"></div>
+      <div class="d-flex justify-content-between align-items-center mt-3" id="lib-pagination" style="display:none!important">
+        <span class="small text-muted" id="lib-page-info"></span>
+        <div class="d-flex gap-2">
+          <button class="page-btn" id="lib-prev" onclick="libPage(-1)">
+            <i class="bi bi-chevron-left"></i> Prev
+          </button>
+          <button class="page-btn" id="lib-next" onclick="libPage(1)">
+            Next <i class="bi bi-chevron-right"></i>
+          </button>
+        </div>
+      </div>
+    </div>
 
-      document.getElementById('generateBtn').addEventListener('click', async ()=>{
-        const topic = document.getElementById('topic').value;
-        const t = (topic || '').trim();
-        if(!t) return alert('Enter a topic');
-        if(t.length > 100) return alert('Topic too long (max 100 chars)');
-        const res = await fetch('/generate', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify({topic: t})});
-        const body = await res.json();
-        alert('Generated content id: ' + body.id);
-        // poll until status becomes posted or failed
-        const start = Date.now();
-        const poll = setInterval(async ()=>{
-          const r = await fetch('/contents');
-          const rows = await r.json();
-          const item = rows.find(x=>x.id === body.id);
-          if(item){
-            if(item.status === 'posted' || item.status === 'failed'){
-              clearInterval(poll);
-              loadContents();
-            }
-            // stop polling after 30s
-            if(Date.now() - start > 30000) clearInterval(poll);
-          }
-        }, 1500);
-      })
+    <!-- ── Jobs ─────────────────────────────────────── -->
+    <div class="tab-pane fade" id="tab-jobs">
+      <div class="d-flex align-items-center gap-2 mb-3">
+        <span class="small text-muted">Auto-refreshes every 5s while jobs are active</span>
+        <button class="btn btn-sm btn-outline-secondary ms-auto" onclick="loadJobs()">
+          <i class="bi bi-arrow-clockwise me-1"></i>Refresh
+        </button>
+      </div>
+      <div id="jobs-body">
+        <div class="empty-state"><i class="bi bi-cpu"></i>No jobs yet</div>
+      </div>
+    </div>
 
-      loadContents();
-    </script>
-  </body>
+  </div>
+</div>
+
+<!-- Toast container -->
+<div id="toast-container"></div>
+
+<!-- Login Modal -->
+<div class="modal fade" id="loginModal" tabindex="-1">
+  <div class="modal-dialog modal-sm">
+    <div class="modal-content" style="background:#1e2130;border:1px solid #2d3148">
+      <div class="modal-header border-0 pb-0">
+        <h6 class="modal-title fw-bold">
+          <i class="bi bi-person-lock me-2 text-primary"></i>Admin Login
+        </h6>
+        <button type="button" class="btn-close btn-close-white" data-bs-dismiss="modal"></button>
+      </div>
+      <div class="modal-body">
+        <div class="mb-3">
+          <input id="login-user" type="text" class="form-control" placeholder="Username" autocomplete="username"/>
+        </div>
+        <div class="mb-2">
+          <input id="login-pass" type="password" class="form-control" placeholder="Password"
+                 autocomplete="current-password" onkeydown="if(event.key==='Enter') submitLogin()"/>
+        </div>
+        <div id="login-error" class="text-danger small d-none"></div>
+      </div>
+      <div class="modal-footer border-0 pt-0">
+        <button class="btn btn-primary w-100" onclick="submitLogin()">Login</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script>
+// ─── State ────────────────────────────────────────────────────────────────
+const S = {
+  token: localStorage.getItem('auth_token'),
+  username: localStorage.getItem('auth_username'),
+  libPage: 1,
+  libPageSize: 10,
+  jobsPollTimer: null,
+};
+
+let loginModal;
+
+document.addEventListener('DOMContentLoaded', () => {
+  loginModal = new bootstrap.Modal(document.getElementById('loginModal'));
+  syncAuthUI();
+  refreshProviders();
+  refreshStats();
+  setInterval(refreshProviders, 30000);
+  setInterval(refreshStats, 60000);
+});
+
+// ─── Toast ────────────────────────────────────────────────────────────────
+function toast(msg, type = 'info') {
+  const el = document.createElement('div');
+  el.className = `toast-msg toast-${type}`;
+  el.textContent = msg;
+  document.getElementById('toast-container').appendChild(el);
+  setTimeout(() => el.remove(), 3500);
+}
+
+// ─── Auth ─────────────────────────────────────────────────────────────────
+function syncAuthUI() {
+  if (S.token) {
+    document.getElementById('auth-status').textContent = `Logged in as ${S.username}`;
+    document.getElementById('btn-login').classList.add('d-none');
+    document.getElementById('btn-logout').classList.remove('d-none');
+  } else {
+    document.getElementById('auth-status').textContent = '';
+    document.getElementById('btn-login').classList.remove('d-none');
+    document.getElementById('btn-logout').classList.add('d-none');
+  }
+}
+
+function openLogin() { loginModal.show(); }
+
+async function submitLogin() {
+  const u = document.getElementById('login-user').value.trim();
+  const p = document.getElementById('login-pass').value;
+  const errEl = document.getElementById('login-error');
+  errEl.classList.add('d-none');
+  if (!u || !p) {
+    errEl.textContent = 'Enter username and password.';
+    errEl.classList.remove('d-none');
+    return;
+  }
+  try {
+    const res = await fetch('/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username: u, password: p }),
+    });
+    if (!res.ok) {
+      errEl.textContent = 'Invalid credentials.';
+      errEl.classList.remove('d-none');
+      return;
+    }
+    const data = await res.json();
+    S.token = data.access_token;
+    S.username = u;
+    localStorage.setItem('auth_token', data.access_token);
+    localStorage.setItem('auth_username', u);
+    loginModal.hide();
+    syncAuthUI();
+    toast(`Welcome, ${u}!`, 'success');
+  } catch {
+    errEl.textContent = 'Login failed. Check network.';
+    errEl.classList.remove('d-none');
+  }
+}
+
+function logout() {
+  S.token = null;
+  S.username = null;
+  localStorage.removeItem('auth_token');
+  localStorage.removeItem('auth_username');
+  syncAuthUI();
+  toast('Logged out', 'info');
+}
+
+function authHdr() {
+  return S.token ? { 'Authorization': `Bearer ${S.token}` } : {};
+}
+
+// ─── Provider Status ──────────────────────────────────────────────────────
+async function refreshProviders() {
+  try {
+    const data = await (await fetch('/ai/providers')).json();
+    setBadge('badge-ollama', 'Ollama', data.ollama);
+    setBadge('badge-gemini', 'Gemini', data.gemini);
+    const active = data.active || 'none';
+    document.getElementById('badge-active').textContent =
+      active !== 'none'
+        ? `Active: ${active.charAt(0).toUpperCase() + active.slice(1)}`
+        : 'No provider available';
+    document.getElementById('provider-last-check').textContent =
+      'Checked ' + new Date().toLocaleTimeString();
+  } catch { /* silent on network error */ }
+}
+
+function setBadge(id, name, status) {
+  const el = document.getElementById(id);
+  const ok = status === 'online' || status === 'configured';
+  el.className = `provider-badge ${ok ? 'online' : 'offline'}`;
+  el.innerHTML = `<i class="bi bi-circle-fill" style="font-size:.5rem"></i>&nbsp;${name} · ${status}`;
+}
+
+// ─── Stats ────────────────────────────────────────────────────────────────
+async function refreshStats() {
+  try {
+    const d = await (await fetch('/api/stats')).json();
+    document.getElementById('stat-total').textContent  = d.total_content  ?? '–';
+    document.getElementById('stat-trends').textContent = d.recent_trends  ?? '–';
+    document.getElementById('stat-ready').textContent  = d.ready_content  ?? '–';
+    document.getElementById('stat-score').textContent  =
+      d.avg_viral_score != null ? d.avg_viral_score.toFixed(1) : '–';
+  } catch { /* silent */ }
+}
+
+// ─── Generate ────────────────────────────────────────────────────────────
+async function generateContent() {
+  const topic    = document.getElementById('gen-topic').value.trim();
+  const category = document.getElementById('gen-category').value;
+  if (!topic) { toast('Enter a topic first.', 'error'); return; }
+  if (topic.length > 200) { toast('Topic too long (max 200 chars).', 'error'); return; }
+
+  const btn = document.getElementById('gen-btn');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-sm me-1"></span> Generating…';
+  document.getElementById('gen-result').classList.add('d-none');
+  document.getElementById('gen-polling').classList.remove('d-none');
+
+  let elapsed = 0;
+  const ticker = setInterval(() => {
+    document.getElementById('gen-poll-elapsed').textContent = (++elapsed) + 's';
+  }, 1000);
+
+  try {
+    const res  = await fetch('/generate', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ topic, category }),
+    });
+    const body = await res.json();
+    if (!res.ok) { toast(body.detail || 'Generation failed.', 'error'); return; }
+
+    const id = body.id;
+    const deadline = Date.now() + 90000;
+    while (Date.now() < deadline) {
+      await sleep(2500);
+      const rows = await (await fetch('/contents?page=1&page_size=50')).json();
+      const item = rows.find(r => r.id === id);
+      if (!item) continue;
+      if (item.status === 'ready')  { showResult(item); refreshStats(); break; }
+      if (item.status === 'failed') { toast('AI generation failed. Check logs.', 'error'); break; }
+    }
+  } catch (e) {
+    toast('Request error: ' + e.message, 'error');
+  } finally {
+    clearInterval(ticker);
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-stars me-1"></i>Generate';
+    document.getElementById('gen-polling').classList.add('d-none');
+  }
+}
+
+function showResult(item) {
+  document.getElementById('gen-result').classList.remove('d-none');
+  setText('res-hook',    item.hook        || '–');
+  setText('res-title',   item.reel_title  || item.topic);
+  setText('res-script',  item.script      || '–');
+  setText('res-caption', item.caption     || '–');
+  document.getElementById('res-status-label').textContent =
+    `Status: ${item.status} · ID: ${item.id}`;
+
+  let tags = [];
+  try { tags = JSON.parse(item.hashtags || '[]'); } catch {}
+  document.getElementById('res-hashtags').innerHTML =
+    tags.map(t => `<span class="hashtag">${esc(t)}</span>`).join('');
+
+  const score = item.viral_score ?? 0;
+  document.getElementById('res-score').textContent = score;
+  const bar = document.getElementById('res-score-bar');
+  bar.style.width = score + '%';
+  bar.className = 'viral-bar-fill ' + scoreClass(score);
+  toast('Content ready!', 'success');
+}
+
+// ─── Trends ───────────────────────────────────────────────────────────────
+async function loadTrends() {
+  const cat = document.getElementById('trend-cat-filter').value;
+  const url = '/api/trends?page_size=50' + (cat ? `&category=${cat}` : '');
+  const body = document.getElementById('trends-body');
+  body.innerHTML = spinner();
+  try {
+    const rows = await (await fetch(url)).json();
+    if (!rows.length) {
+      body.innerHTML = emptyState('bi-graph-up', 'No trends found. Click "Fetch Live Trends".');
+      return;
+    }
+    body.innerHTML = `
+      <div class="table-responsive">
+      <table class="table table-dark table-hover align-middle mb-0" style="font-size:.875rem">
+        <thead style="color:#64748b">
+          <tr><th>Topic</th><th>Category</th><th>Source</th><th>Viral Score</th><th>Date</th><th></th></tr>
+        </thead>
+        <tbody>
+          ${rows.map(t => `
+          <tr class="trend-row">
+            <td style="max-width:320px" class="fw-medium">${esc(t.topic)}</td>
+            <td><span class="badge bg-secondary">${esc(t.category)}</span></td>
+            <td class="text-muted">${esc(t.source)}</td>
+            <td>
+              <span class="fw-bold ${t.viral_score>=75?'text-success':t.viral_score>=55?'text-warning':'text-secondary'}">${t.viral_score}</span>
+              <div class="viral-bar mt-1" style="width:80px">
+                <div class="viral-bar-fill ${scoreClass(t.viral_score)}" style="width:${t.viral_score}%"></div>
+              </div>
+            </td>
+            <td class="text-muted">${fmtDate(t.created_at)}</td>
+            <td>
+              <button class="btn btn-sm btn-outline-primary py-0 px-2"
+                      onclick="generateFromTrend(${t.id}, ${JSON.stringify(t.topic)})">
+                <i class="bi bi-magic me-1"></i>Generate
+              </button>
+            </td>
+          </tr>`).join('')}
+        </tbody>
+      </table>
+      </div>`;
+  } catch (e) {
+    body.innerHTML = emptyState('bi-exclamation-circle', e.message);
+  }
+}
+
+async function fetchTrends() {
+  if (!S.token) { toast('Admin login required.', 'error'); openLogin(); return; }
+  const btn = document.getElementById('btn-fetch-trends');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner-border spinner-sm me-1"></span> Fetching…';
+  try {
+    const res = await fetch('/api/fetch-trends', {
+      method: 'POST',
+      headers: { ...authHdr() },
+    });
+    if (res.status === 401) { toast('Session expired. Please login again.', 'error'); logout(); return; }
+    const d = await res.json();
+    toast(`Fetched ${d.fetched}, saved ${d.saved} new trends.`, 'success');
+    await loadTrends();
+    await refreshStats();
+  } catch (e) {
+    toast('Fetch failed: ' + e.message, 'error');
+  } finally {
+    btn.disabled = false;
+    btn.innerHTML = '<i class="bi bi-cloud-download me-1"></i>Fetch Live Trends';
+  }
+}
+
+async function generateFromTrend(trendId, topic) {
+  if (!S.token) { toast('Admin login required.', 'error'); openLogin(); return; }
+  try {
+    const res = await fetch(`/api/generate-from-trend/${trendId}`, {
+      method: 'POST',
+      headers: { ...authHdr() },
+    });
+    if (!res.ok) { toast('Failed to queue generation.', 'error'); return; }
+    toast(`Queued: "${String(topic).slice(0, 60)}"`, 'success');
+    refreshStats();
+  } catch (e) {
+    toast('Error: ' + e.message, 'error');
+  }
+}
+
+// ─── Library ──────────────────────────────────────────────────────────────
+async function loadLibrary(page) {
+  S.libPage = page || S.libPage;
+  const status   = document.getElementById('lib-status-filter').value;
+  const category = document.getElementById('lib-cat-filter').value;
+  let url = `/contents?page=${S.libPage}&page_size=${S.libPageSize}`;
+  if (status)   url += `&status=${status}`;
+  if (category) url += `&category=${category}`;
+
+  const body = document.getElementById('lib-body');
+  body.innerHTML = spinner();
+  try {
+    const rows = await (await fetch(url)).json();
+    const pager = document.getElementById('lib-pagination');
+    if (!rows.length && S.libPage === 1) {
+      body.innerHTML = emptyState('bi-collection', 'No content found.');
+      pager.style.display = 'none';
+      return;
+    }
+    pager.style.removeProperty('display');
+    document.getElementById('lib-page-info').textContent = `Page ${S.libPage}`;
+    document.getElementById('lib-prev').disabled = S.libPage === 1;
+    document.getElementById('lib-next').disabled = rows.length < S.libPageSize;
+    body.innerHTML = rows.map(r => contentCard(r, true)).join('');
+  } catch (e) {
+    body.innerHTML = emptyState('bi-exclamation-circle', e.message);
+  }
+}
+
+function libPage(dir) { loadLibrary(S.libPage + dir); }
+
+// ─── Jobs ─────────────────────────────────────────────────────────────────
+async function loadJobs() {
+  clearTimeout(S.jobsPollTimer);
+  const body = document.getElementById('jobs-body');
+  try {
+    const rows = await (await fetch('/contents?page=1&page_size=50')).json();
+    if (!rows.length) {
+      body.innerHTML = emptyState('bi-cpu', 'No jobs yet.');
+      document.getElementById('jobs-badge').classList.add('d-none');
+      return;
+    }
+    rows.sort((a, b) => new Date(b.created_at) - new Date(a.created_at));
+    const active = rows.filter(r => r.status === 'processing' || r.status === 'draft');
+    const badge = document.getElementById('jobs-badge');
+    if (active.length) {
+      badge.textContent = active.length;
+      badge.classList.remove('d-none');
+      S.jobsPollTimer = setTimeout(loadJobs, 5000);
+    } else {
+      badge.classList.add('d-none');
+    }
+    body.innerHTML = rows.map(r => contentCard(r, false)).join('');
+  } catch (e) {
+    body.innerHTML = emptyState('bi-exclamation-circle', e.message);
+  }
+}
+
+// ─── Content card ─────────────────────────────────────────────────────────
+function contentCard(r, showDetails) {
+  let tags = [];
+  try { tags = JSON.parse(r.hashtags || '[]'); } catch {}
+
+  const scoreHtml = r.viral_score != null
+    ? `<span class="fw-bold me-1">${r.viral_score}</span><i class="bi bi-fire small text-muted"></i>
+       <div class="viral-bar mt-1" style="width:90px">
+         <div class="viral-bar-fill ${scoreClass(r.viral_score)}" style="width:${r.viral_score}%"></div>
+       </div>`
+    : '<span class="text-muted">–</span>';
+
+  const extraHtml = showDetails && (r.hook || r.caption) ? `
+    <div class="mt-2 pt-2" style="border-top:1px solid #2d3148">
+      ${r.hook    ? `<div class="mb-1"><span style="font-size:.68rem;color:#6366f1;font-weight:700;text-transform:uppercase">HOOK</span><div class="small fw-semibold mt-1">${esc(r.hook)}</div></div>` : ''}
+      ${r.caption ? `<div class="mb-1"><span style="font-size:.68rem;color:#6366f1;font-weight:700;text-transform:uppercase">CAPTION</span><div class="small mt-1">${esc(r.caption)}</div></div>` : ''}
+      ${tags.length ? `<div class="mt-1">${tags.map(t => `<span class="hashtag">${esc(t)}</span>`).join('')}</div>` : ''}
+    </div>` : '';
+
+  const spin = r.status === 'processing'
+    ? ' <span class="spinner-border text-warning spinner-sm ms-1"></span>'
+    : '';
+
+  return `<div class="content-card">
+    <div class="d-flex justify-content-between align-items-start gap-2 flex-wrap">
+      <div style="min-width:0">
+        <div class="topic">${esc(r.topic)}</div>
+        <div class="meta">
+          #${r.id} · ${esc(r.category || 'general')} · ${fmtDate(r.created_at)}
+          ${r.reel_title ? ` · <em>${esc(r.reel_title)}</em>` : ''}
+        </div>
+      </div>
+      <div class="d-flex align-items-center gap-3 flex-shrink-0">
+        <div>${scoreHtml}</div>
+        <span class="status-badge status-${r.status}">${r.status}${spin}</span>
+      </div>
+    </div>
+    ${extraHtml}
+    ${r.error_message ? `<div class="small text-danger mt-1"><i class="bi bi-exclamation-triangle me-1"></i>${esc(r.error_message)}</div>` : ''}
+  </div>`;
+}
+
+// ─── Helpers ──────────────────────────────────────────────────────────────
+function scoreClass(s) {
+  if (s >= 75) return 'score-high';
+  if (s >= 55) return 'score-medium';
+  return 'score-low';
+}
+
+function esc(s) {
+  return String(s || '')
+    .replace(/&/g,'&amp;').replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+}
+
+function fmtDate(iso) {
+  if (!iso) return '–';
+  return new Date(iso).toLocaleString(undefined, { dateStyle: 'short', timeStyle: 'short' });
+}
+
+function sleep(ms) { return new Promise(r => setTimeout(r, ms)); }
+function setText(id, txt) { document.getElementById(id).textContent = txt; }
+function spinner() { return '<div class="text-center py-4"><span class="spinner-border text-primary spinner-sm"></span></div>'; }
+function emptyState(icon, msg) { return `<div class="empty-state"><i class="bi ${icon}"></i>${esc(msg)}</div>`; }
+</script>
+</body>
 </html>

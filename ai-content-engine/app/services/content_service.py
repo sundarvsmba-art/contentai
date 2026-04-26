@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 
 from ..core.database import Content, Trend
 from .queue_service import enqueue_generation
-from .ai.gemini_provider import GeminiProvider
+from .ai.provider_router import provider_router
 
 logger = logging.getLogger(__name__)
 
@@ -80,11 +80,10 @@ def generate_sync_and_save(
     topic: str,
     category: str = 'general',
 ) -> Optional[Content]:
-    provider = GeminiProvider()
     try:
         use_viral = category and category != 'general'
         if use_viral:
-            result = provider.generate_viral_content(topic, category)
+            result = provider_router.generate_viral_content(topic, category)
             script = result.get('script', '')
             hook = result.get('hook')
             reel_title = result.get('reel_title')
@@ -93,7 +92,7 @@ def generate_sync_and_save(
             hashtags = json.dumps(hashtags_raw) if isinstance(hashtags_raw, list) else hashtags_raw
             viral_score = result.get('viral_score')
         else:
-            script = provider.generate_content(topic)
+            script = provider_router.generate_content(topic)
             hook = reel_title = caption = hashtags = viral_score = None
 
         row = db.query(Content).filter(Content.id == content_id).first()

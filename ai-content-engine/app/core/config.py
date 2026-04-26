@@ -22,6 +22,10 @@ class Settings(BaseSettings):
     ADMIN_PASSWORD: str = "admin123"
     ACCESS_TOKEN_EXPIRE_HOURS: int = 24
 
+    # Ollama (local AI — auto-detected via health check)
+    OLLAMA_URL: str = "http://host.docker.internal:11434"
+    OLLAMA_MODEL: str = "phi3"
+
     # Optional News API key (newsapi.org)
     NEWS_API_KEY: Optional[str] = None
 

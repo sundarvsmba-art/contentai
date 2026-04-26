@@ -1,66 +1,88 @@
 version: '3.8'
+
 services:
+
+  # ── PostgreSQL ────────────────────────────────────────────────────────────
   db:
-    image: postgres:15
+    image: postgres:15-alpine
     restart: always
+    env_file: .env
     environment:
-      POSTGRES_DB: ${DB_NAME}
-      POSTGRES_USER: ${DB_USER}
-      POSTGRES_PASSWORD: ${DB_PASSWORD}
+      POSTGRES_DB: ${DB_NAME:-ai_content}
+      POSTGRES_USER: ${DB_USER:-postgres}
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-postgres}
     volumes:
       - db_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
+      test: ["CMD-SHELL", "pg_isready -U ${DB_USER:-postgres} -d ${DB_NAME:-ai_content}"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 10s
 
+  # ── Redis ─────────────────────────────────────────────────────────────────
   redis:
-    image: redis:7
+    image: redis:7-alpine
     restart: always
+    volumes:
+      - redis_data:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
       interval: 5s
       timeout: 5s
-      retries: 5
+      retries: 10
+      start_period: 5s
 
+  # ── Backend (FastAPI + Gunicorn) ──────────────────────────────────────────
   backend:
+    image: sms300/contentai:latest
     build: .
+    restart: always
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
     ports:
-      - "2000:2000"
+      - "${APP_PORT:-2000}:${APP_PORT:-2000}"
+    env_file: .env
     environment:
-      GEMINI_API_KEY: ${GEMINI_API_KEY}
       DB_HOST: db
-      DB_NAME: ${DB_NAME}
-      DB_USER: ${DB_USER}
-      DB_PASSWORD: ${DB_PASSWORD}
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-    volumes:
-      - .:/app
-    restart: always
+    # Allows containers to reach Ollama running on the host (Linux)
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:${APP_PORT:-2000}/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s
 
+  # ── Celery Worker + Beat ──────────────────────────────────────────────────
   worker:
+    image: sms300/contentai:latest
     build: .
-    command: celery -A app.workers.celery_worker worker --loglevel=info
+    command: celery -A app.workers.celery_worker worker --beat --loglevel=info
+    restart: always
     depends_on:
       db:
         condition: service_healthy
       redis:
         condition: service_healthy
+      backend:
+        condition: service_healthy
+    env_file: .env
     environment:
+      DB_HOST: db
       REDIS_URL: redis://redis:6379/0
       CELERY_BROKER_URL: redis://redis:6379/0
       CELERY_RESULT_BACKEND: redis://redis:6379/0
-    volumes:
-      - .:/app
-    restart: always
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
 
 volumes:
   db_data:
+  redis_data:
