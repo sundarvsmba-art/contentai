@@ -1,46 +1,35 @@
 name: Build and Push Docker Image
 
 on:
-push:
-branches:
-- main
-
-workflow_dispatch:
+  push:
+    branches:
+      - main
+  workflow_dispatch:
 
 jobs:
-docker-build-push:
-name: Build and Push to Docker Hub
-runs-on: ubuntu-latest
+  docker-build-push:
+    name: Build and Push to Docker Hub
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
 
-steps:
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
 
-  - name: Checkout Repository
-    uses: actions/checkout@v4
+      - name: Login to Docker Hub
+        uses: docker/login-action@v3
+        with:
+          username: ${{ secrets.DOCKER_USERNAME }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
 
-  - name: Set up Docker Buildx
-    uses: docker/setup-buildx-action@v3
-
-  - name: Login to Docker Hub
-    uses: docker/login-action@v3
-    with:
-      username: ${{ secrets.DOCKER_USERNAME }}
-      password: ${{ secrets.DOCKER_PASSWORD }}
-
-  - name: Build Docker Image
-    run: |
-      docker build \
-        -t sms300/contentai:latest \
-        -t sms300/contentai:${{ github.sha }} \
-        ai-content-engine/
-
-  - name: Push Latest Tag
-    run: |
-      docker push sms300/contentai:latest
-
-  - name: Push Commit SHA Tag
-    run: |
-      docker push sms300/contentai:${{ github.sha }}
-
-  - name: Verify Docker Image
-    run: |
-      docker images
+      - name: Build and Push Docker Image
+        uses: docker/build-push-action@v5
+        with:
+          context: ./ai-content-engine
+          push: true
+          tags: |
+            sms300/contentai:latest
+            sms300/contentai:${{ github.sha }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
